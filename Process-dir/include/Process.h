@@ -9,7 +9,10 @@ public:
     int wait();
     std::string readStdout();
     std::string readStderr();
+    void writeStdin(const std::string& input);
     void terminate();
+    void closeStdin();
+
 
 private:
     std::string executable;
@@ -24,5 +27,6 @@ private:
     int pid = -1;
     int stdoutPipe[2];
     int stderrPipe[2];
+    int stdinPipe[2];
 #endif
 };
