@@ -190,8 +190,23 @@ void Process::closeStdin() {
 
 
 void Process::writeStdin(const std::string& input) {
-    if (stdinPipe[1] != -1)
-        write(stdinPipe[1], input.c_str(), input.size());
+    if (stdinPipe[1] != -1) {
+        size_t totalWritten = 0;
+        const char* buffer = input.c_str();
+        size_t toWrite = input.size();
+
+        while (totalWritten < toWrite) {
+            ssize_t written = write(stdinPipe[1], buffer + totalWritten, toWrite - totalWritten);
+            if (written < 0) {
+                if (errno == EINTR) {
+                    continue; // Interrupted by signal, retry
+                }
+                perror("write to stdinPipe failed");
+                break;
+            }
+            totalWritten += static_cast<size_t>(written);
+        }
+    }
 }
 
 #endif
