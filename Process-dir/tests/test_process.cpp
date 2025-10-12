@@ -1,5 +1,3 @@
-// This is a demo version of PVS-Studio for educational use.
-// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 #include <iostream>
 #include "../include/Process.h"
 

@@ -16,8 +16,6 @@ Pipe::~Pipe() {
     closeWrite();
 }
 
-
-
 bool Pipe::create() {
 #ifdef _WIN32
     SECURITY_ATTRIBUTES saAttr{};
@@ -88,8 +86,6 @@ std::string Pipe::readAll() {
 #endif
     return result;
 }
-
-
 
 void Pipe::write(const std::string& data) {
 #ifdef _WIN32
