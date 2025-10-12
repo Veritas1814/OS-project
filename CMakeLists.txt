@@ -32,10 +32,9 @@ endif()
 #=========================================================
 # Process library
 #=========================================================
+file(GLOB PROCESS_SOURCES "Process-dir/src/*.cpp")
 
-add_library(Process
-        Process-dir/src/Process.cpp
-)
+add_library(Process ${PROCESS_SOURCES})
 
 target_include_directories(Process PUBLIC
         Process-dir/include
