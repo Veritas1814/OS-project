@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include "Pipe.h"
 
 class Process {
 public:
@@ -26,8 +27,8 @@ private:
     void* hStdInWrite = nullptr;
 #else
     int pid = -1;
-    int stdoutPipe[2];
-    int stderrPipe[2];
-    int stdinPipe[2];
+    Pipe stdinPipe;
+    Pipe stdoutPipe;
+    Pipe stderrPipe;
 #endif
 };
