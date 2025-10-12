@@ -23,6 +23,7 @@ private:
     void* hThread = nullptr;
     void* hStdOutRead = nullptr;
     void* hStdErrRead = nullptr;
+    void* hStdInWrite = nullptr;
 #else
     int pid = -1;
     int stdoutPipe[2];
