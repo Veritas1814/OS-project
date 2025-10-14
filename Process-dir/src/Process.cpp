@@ -16,9 +16,15 @@ bool Process::start() {
     PROCESS_INFORMATION pi{};
     si.cb = sizeof(STARTUPINFOA);
     si.dwFlags |= STARTF_USESTDHANDLES;
+
     si.hStdInput  = stdinPipe.getReadHandle();
     si.hStdOutput = stdoutPipe.getWriteHandle();
     si.hStdError  = stderrPipe.getWriteHandle();
+
+    SECURITY_ATTRIBUTES saAttr{};
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;
+    saAttr.lpSecurityDescriptor = nullptr;
 
     std::ostringstream cmd;
     cmd << "\"" << executable << "\"";
@@ -38,19 +44,15 @@ bool Process::start() {
         &pi
     );
 
-    stdoutPipe.closeWrite();
-    stderrPipe.closeWrite();
-    stdinPipe.closeRead();
-
     if (!success)
         throw std::runtime_error("CreateProcessA failed");
 
+    stdinPipe.closeRead();
+    stdoutPipe.closeWrite();
+    stderrPipe.closeWrite();
+
     hProcess = pi.hProcess;
     hThread  = pi.hThread;
-
-    this->stdinPipe  = stdinPipe;
-    this->stdoutPipe = stdoutPipe;
-    this->stderrPipe = stderrPipe;
 
     return true;
 }
