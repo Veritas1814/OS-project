@@ -30,7 +30,7 @@ bool Process::start() {
         const_cast<char*>(cmd.str().c_str()),
         nullptr,
         nullptr,
-        TRUE,  // дозволяє наслідувати хендли пайпів
+        TRUE,
         0,
         nullptr,
         nullptr,
@@ -48,9 +48,9 @@ bool Process::start() {
     hProcess = pi.hProcess;
     hThread  = pi.hThread;
 
-    this->stdinPipe  = std::move(stdinPipe);
-    this->stdoutPipe = std::move(stdoutPipe);
-    this->stderrPipe = std::move(stderrPipe);
+    this->stdinPipe  = stdinPipe;
+    this->stdoutPipe = stdoutPipe;
+    this->stderrPipe = stderrPipe;
 
     return true;
 }
