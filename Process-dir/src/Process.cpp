@@ -9,37 +9,45 @@ Process::Process(const std::string& path, const std::vector<std::string>& args)
     : executable(path), arguments(args) {}
 
 bool Process::start() {
-    Pipe stdinPipe, stdoutPipe, stderrPipe;
-
     if (!stdinPipe.create() || !stdoutPipe.create() || !stderrPipe.create())
-        return false;
+        throw std::runtime_error("Pipe creation failed");
 
     STARTUPINFOA si{};
     PROCESS_INFORMATION pi{};
     si.cb = sizeof(STARTUPINFOA);
     si.dwFlags |= STARTF_USESTDHANDLES;
+    si.hStdInput  = stdinPipe.readHandle();
     si.hStdOutput = stdoutPipe.writeHandle();
     si.hStdError  = stderrPipe.writeHandle();
-    si.hStdInput  = stdinPipe.readHandle();
 
     std::ostringstream cmd;
     cmd << "\"" << executable << "\"";
-    for (auto& a : arguments) cmd << " " << a;
+    for (auto& a : arguments)
+        cmd << " " << a;
 
     BOOL success = CreateProcessA(
         nullptr,
         const_cast<char*>(cmd.str().c_str()),
-        nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi
+        nullptr,
+        nullptr,
+        TRUE,  // дозволяє наслідувати хендли пайпів
+        0,
+        nullptr,
+        nullptr,
+        &si,
+        &pi
     );
 
     stdoutPipe.closeWrite();
     stderrPipe.closeWrite();
     stdinPipe.closeRead();
 
-    if (!success) return false;
+    if (!success)
+        throw std::runtime_error("CreateProcessA failed");
 
     hProcess = pi.hProcess;
-    hThread = pi.hThread;
+    hThread  = pi.hThread;
+
     this->stdinPipe  = std::move(stdinPipe);
     this->stdoutPipe = std::move(stdoutPipe);
     this->stderrPipe = std::move(stderrPipe);

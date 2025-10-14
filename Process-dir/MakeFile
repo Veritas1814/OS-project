@@ -20,3 +20,4 @@ src/%.o: src/%.cpp
 
 clean:
 	rm -f src/*.o *.o $(TARGET)
+	rm -f tests/*.o *.o $(TARGET)
