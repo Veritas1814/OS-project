@@ -16,7 +16,6 @@ bool Process::start() {
     PROCESS_INFORMATION pi{};
     si.cb = sizeof(STARTUPINFOA);
     si.dwFlags |= STARTF_USESTDHANDLES;
-
     si.hStdInput  = stdinPipe.getReadHandle();
     si.hStdOutput = stdoutPipe.getWriteHandle();
     si.hStdError  = stderrPipe.getWriteHandle();
@@ -31,7 +30,7 @@ bool Process::start() {
         const_cast<char*>(cmd.str().c_str()),
         nullptr,
         nullptr,
-        TRUE,   // наследовать дескрипторы
+        TRUE,
         0,
         nullptr,
         nullptr,
@@ -42,14 +41,12 @@ bool Process::start() {
     if (!success)
         throw std::runtime_error("CreateProcessA failed");
 
+    stdinPipe.closeRead();
+    stdoutPipe.closeWrite();
+    stderrPipe.closeWrite();
+
     hProcess = pi.hProcess;
     hThread  = pi.hThread;
-
-    stdinPipe.closeRead();
-
-    this->stdinPipe  = std::move(stdinPipe);
-    this->stdoutPipe = std::move(stdoutPipe);
-    this->stderrPipe = std::move(stderrPipe);
 
     return true;
 }
