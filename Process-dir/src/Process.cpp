@@ -26,17 +26,12 @@ bool Process::start() {
     for (auto& a : arguments)
         cmd << " " << a;
 
-    SECURITY_ATTRIBUTES saAttr{};
-    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-    saAttr.bInheritHandle = TRUE;
-    saAttr.lpSecurityDescriptor = nullptr;
-
     BOOL success = CreateProcessA(
         nullptr,
         const_cast<char*>(cmd.str().c_str()),
         nullptr,
         nullptr,
-        TRUE,
+        TRUE,   // наследовать дескрипторы
         0,
         nullptr,
         nullptr,
@@ -51,11 +46,14 @@ bool Process::start() {
     hThread  = pi.hThread;
 
     stdinPipe.closeRead();
-    stdoutPipe.closeWrite();
-    stderrPipe.closeWrite();
+
+    this->stdinPipe  = std::move(stdinPipe);
+    this->stdoutPipe = std::move(stdoutPipe);
+    this->stderrPipe = std::move(stderrPipe);
 
     return true;
 }
+
 int Process::wait() {
     WaitForSingleObject(hProcess, INFINITE);
     DWORD code = 0;
