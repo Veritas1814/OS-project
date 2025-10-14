@@ -18,7 +18,7 @@ public:
     void write(const std::string& data);
 
 #ifdef _WIN32
-    HANDLE getReadHandle() const { return hRAead; }
+    HANDLE getReadHandle() const { return hRead; }
     HANDLE getWriteHandle() const { return hWrite; }
 #else
     int getReadFD() const { return fdRead; }
