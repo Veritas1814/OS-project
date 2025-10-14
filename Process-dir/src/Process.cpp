@@ -16,9 +16,9 @@ bool Process::start() {
     PROCESS_INFORMATION pi{};
     si.cb = sizeof(STARTUPINFOA);
     si.dwFlags |= STARTF_USESTDHANDLES;
-    si.hStdInput  = stdinPipe.readHandle();
-    si.hStdOutput = stdoutPipe.writeHandle();
-    si.hStdError  = stderrPipe.writeHandle();
+    si.hStdInput  = stdinPipe.getReadHandle();
+    si.hStdOutput = stdoutPipe.getWriteHandle();
+    si.hStdError  = stderrPipe.getWriteHandle();
 
     std::ostringstream cmd;
     cmd << "\"" << executable << "\"";
