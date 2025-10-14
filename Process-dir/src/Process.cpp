@@ -21,15 +21,15 @@ bool Process::start() {
     si.hStdOutput = stdoutPipe.getWriteHandle();
     si.hStdError  = stderrPipe.getWriteHandle();
 
-    SECURITY_ATTRIBUTES saAttr{};
-    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-    saAttr.bInheritHandle = TRUE;
-    saAttr.lpSecurityDescriptor = nullptr;
-
     std::ostringstream cmd;
     cmd << "\"" << executable << "\"";
     for (auto& a : arguments)
         cmd << " " << a;
+
+    SECURITY_ATTRIBUTES saAttr{};
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;
+    saAttr.lpSecurityDescriptor = nullptr;
 
     BOOL success = CreateProcessA(
         nullptr,
@@ -47,16 +47,15 @@ bool Process::start() {
     if (!success)
         throw std::runtime_error("CreateProcessA failed");
 
+    hProcess = pi.hProcess;
+    hThread  = pi.hThread;
+
     stdinPipe.closeRead();
     stdoutPipe.closeWrite();
     stderrPipe.closeWrite();
 
-    hProcess = pi.hProcess;
-    hThread  = pi.hThread;
-
     return true;
 }
-
 int Process::wait() {
     WaitForSingleObject(hProcess, INFINITE);
     DWORD code = 0;
