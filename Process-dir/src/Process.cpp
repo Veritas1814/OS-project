@@ -15,39 +15,46 @@ bool Process::start() {
     STARTUPINFOA si{};
     PROCESS_INFORMATION pi{};
     si.cb = sizeof(STARTUPINFOA);
-    si.dwFlags |= STARTF_USESTDHANDLES;
+    si.dwFlags = STARTF_USESTDHANDLES;
 
-    si.hStdInput  = stdinPipe.getWriteHandle();
-    si.hStdOutput = stdoutPipe.getReadHandle();
-    si.hStdError  = stderrPipe.getReadHandle();
+    si.hStdInput = stdinPipe.getReadHandle();
+    si.hStdOutput = stdoutPipe.getWriteHandle();
+    si.hStdError = stderrPipe.getWriteHandle();
 
     std::ostringstream cmd;
     cmd << "\"" << executable << "\"";
     for (auto& a : arguments)
-        cmd << " " << a;
+        cmd << " \"" << a << "\"";
+
+    std::string cmdStr = cmd.str();
 
     BOOL success = CreateProcessA(
         nullptr,
-        const_cast<char*>(cmd.str().c_str()),
+        cmdStr.data(),
         nullptr,
         nullptr,
         TRUE,
-        0,
+        CREATE_NO_WINDOW,
         nullptr,
         nullptr,
         &si,
         &pi
     );
 
-    if (!success)
-        throw std::runtime_error("CreateProcessA failed");
+    if (!success) {
+        DWORD error = GetLastError();
+        throw std::runtime_error("CreateProcessA failed with error: " + std::to_string(error));
+    }
 
-    CloseHandle(stdinPipe.getReadHandle());
-    CloseHandle(stdoutPipe.getWriteHandle());
-    CloseHandle(stderrPipe.getWriteHandle());
+    CloseHandle(pi.hThread);
+
+
+    stdinPipe.closeRead();
+    stdoutPipe.closeWrite();
+    stderrPipe.closeWrite();
 
     hProcess = pi.hProcess;
-    hThread  = pi.hThread;
+    processId = pi.dwProcessId;
 
     return true;
 }
