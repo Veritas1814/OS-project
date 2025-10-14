@@ -25,6 +25,9 @@ private:
     void* hStdOutRead = nullptr;
     void* hStdErrRead = nullptr;
     void* hStdInWrite = nullptr;
+    Pipe stdinPipe;
+    Pipe stdoutPipe;
+    Pipe stderrPipe;
 #else
     int pid = -1;
     Pipe stdinPipe;
