@@ -32,11 +32,9 @@ bool Pipe::create() {
 #else
     int fds[2];
     if (::pipe(fds) < 0) return false;
-    fdRead = fds[0];
-    fdWrite = fds[1];
+    readFD = fds[0];
+    writeFD = fds[1];
 
-    fcntl(fdRead, F_SETFL, O_NONBLOCK);
-    fcntl(fdWrite, F_SETFL, O_NONBLOCK);
     return true;
 #endif
 }
@@ -48,9 +46,9 @@ void Pipe::closeRead() {
         hRead = nullptr;
     }
 #else
-    if (fdRead != -1) {
-        ::close(fdRead);
-        fdRead = -1;
+    if (readFD != -1) {
+        ::close(readFD);
+        readFD = -1;
     }
 #endif
 }
@@ -62,9 +60,9 @@ void Pipe::closeWrite() {
         hWrite = nullptr;
     }
 #else
-    if (fdWrite != -1) {
-        ::close(fdWrite);
-        fdWrite = -1;
+    if (writeFD != -1) {
+        ::close(writeFD);
+        writeFD = -1;
     }
 #endif
 }
@@ -78,10 +76,10 @@ std::string Pipe::readAll() {
     while (ReadFile(hRead, buffer, sizeof(buffer), &bytesRead, nullptr) && bytesRead > 0)
         result.append(buffer, bytesRead);
 #else
-    if (fdRead == -1) return result;
+    if (readFD == -1) return result;
     char buffer[4096];
     ssize_t bytes;
-    while ((bytes = ::read(fdRead, buffer, sizeof(buffer))) > 0)
+    while ((bytes = ::read(readFD, buffer, sizeof(buffer))) > 0)
         result.append(buffer, bytes);
 #endif
     return result;
@@ -93,7 +91,7 @@ void Pipe::write(const std::string& data) {
     DWORD written;
     WriteFile(hWrite, data.c_str(), static_cast<DWORD>(data.size()), &written, nullptr);
 #else
-    if (fdWrite == -1) return;
-    ::write(fdWrite, data.c_str(), data.size());
+    if (writeFD == -1) return;
+    ::write(writeFD, data.c_str(), data.size());
 #endif
 }

@@ -21,8 +21,8 @@ public:
     HANDLE getReadHandle() const { return hRead; }
     HANDLE getWriteHandle() const { return hWrite; }
 #else
-    int getReadFD() const { return fdRead; }
-    int getWriteFD() const { return fdWrite; }
+    int getReadFD() const { return readFD; }
+    int getWriteFD() const { return writeFD; }
 #endif
 
 private:
@@ -30,7 +30,7 @@ private:
     HANDLE hRead{nullptr};
     HANDLE hWrite{nullptr};
 #else
-    int fdRead{-1};
-    int fdWrite{-1};
+    int readFD = -1;
+    int writeFD = -1;
 #endif
 };
