@@ -1,3 +1,6 @@
+// This is a demo version of PVS-Studio for educational use.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
+
 #include "../include/Pipe.h"
 #include <stdexcept>
 #include <vector>
@@ -26,9 +29,8 @@ bool Pipe::create() {
     if (!CreatePipe(&hRead, &hWrite, &saAttr, 0))
         return false;
 
-    SetHandleInformation(hRead, HANDLE_FLAG_INHERIT, 0);
-    SetHandleInformation(hWrite, HANDLE_FLAG_INHERIT, 0);
     return true;
+
 #else
     int fds[2];
     if (::pipe(fds) < 0) return false;
