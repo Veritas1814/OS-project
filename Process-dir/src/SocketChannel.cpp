@@ -3,6 +3,7 @@
 //
 #include "../include/SocketChannel.h"
 #include <stdexcept>
+#include <iostream>
 
 #ifdef _WIN32
 bool SocketChannel::wsaStarted = false;
@@ -65,27 +66,55 @@ bool SocketChannel::create() {
 }
 
 bool SocketChannel::bindAndListen(unsigned short port, int backlog) {
+    std::cerr << "=== ENTER bindAndListen ===\n";
+
+    std::cerr << "sock=" << sock << "\n";
+
 #ifdef _WIN32
-    if (sock == INVALID_SOCKET) return false;
+    if (sock == INVALID_SOCKET) {
+        std::cerr << "[parent] ERROR: INVALID_SOCKET\n";
+        return false;
+    }
 #else
-    if (sock == -1) return false;
+    if (sock == -1) {
+        std::cerr << "[parent] ERROR: sock == -1\n";
+        return false;
+    }
 #endif
+
+    std::cerr << "[parent] bind start on port " << port << "\n";
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(port);
 
     int opt = 1;
-#ifdef _WIN32
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
-    if (::bind(sock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) return false;
-    if (::listen(sock, backlog) == SOCKET_ERROR) return false;
-#else
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    if (::bind(sock, (sockaddr*)&addr, sizeof(addr)) == -1) return false;
-    if (::listen(sock, backlog) == -1) return false;
-#endif
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt failed");
+    }
+
+    std::cerr << "[parent] calling bind()...\n";
+
+    if (::bind(sock, (sockaddr*)&addr, sizeof(addr)) == -1) {
+        perror("bind failed");
+        std::cerr << "[parent] bind FAILED\n";
+        return false;
+    }
+
+    std::cerr << "[parent] bind OK\n";
+
+    std::cerr << "[parent] calling listen()...\n";
+
+    if (::listen(sock, backlog) == -1) {
+        perror("listen failed");
+        std::cerr << "[parent] listen FAILED\n";
+        return false;
+    }
+
+    std::cerr << "[parent] listen OK\n";
+    std::cerr << "=== EXIT bindAndListen ===\n";
+
     return true;
 }
 
