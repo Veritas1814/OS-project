@@ -3,7 +3,7 @@
 
 int main() {
     Process p("./child", {});
-    p.start();   // запуск з PIPE-IPC
+    p.start();
 
     p.writeStdin("hello from parent\n");
     p.closeStdin();
