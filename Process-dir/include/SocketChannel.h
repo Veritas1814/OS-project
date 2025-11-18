@@ -1,21 +1,14 @@
-//
-// Created by Дмитро on 17.11.2025.
-//
-
+// SocketChannel.h
 #pragma once
+
 #include <string>
+#include <cstdint>
 
 #ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#pragma comment(lib, "ws2_32.lib")
+using socket_handle = std::uintptr_t;   // зберігаємо SOCKET як integer handle
 #else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
+using socket_handle = int;              // звичайний fd
 #endif
-
 class SocketChannel {
 public:
     SocketChannel();
@@ -34,18 +27,11 @@ public:
     std::string readAll();
     void write(const std::string& data);
 
-#ifdef _WIN32
-    SOCKET getSocket() const { return sock; }
-#else
-    int getFD() const { return sock; }
-#endif
-
 private:
+    socket_handle sock;
+
 #ifdef _WIN32
-    SOCKET sock;
     static bool wsaStarted;
     static void ensureWSAStarted();
-#else
-    int sock;
 #endif
 };

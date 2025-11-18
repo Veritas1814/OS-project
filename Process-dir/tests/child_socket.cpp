@@ -1,11 +1,18 @@
 #include "../include/SocketChannel.h"
 #include <iostream>
 #include <string>
+
+#ifdef _WIN32
+#include <windows.h>
+static void sleep_ms(int ms) { Sleep(ms); }
+#else
 #include <unistd.h>
+static void sleep_ms(int ms) { usleep(ms * 1000); }
+#endif
 
 int main(int argc, char** argv) {
-
-    usleep(200000);
+    // Дати батьку час зробити bind/listen
+    sleep_ms(200);
 
     if (argc < 4) {
         std::cerr << "need 3 ports\n";
@@ -13,7 +20,7 @@ int main(int argc, char** argv) {
     }
 
     std::cerr << "\n=== CHILD ARGUMENTS ===\n";
-    std::cerr << "argc = " << argc << "\n";
+    std::cerr << "argc = " << argc  << "\n";
     for (int i = 0; i < argc; i++) {
         std::cerr << "argv[" << i << "] = \"" << argv[i] << "\"\n";
     }
@@ -25,17 +32,16 @@ int main(int argc, char** argv) {
 
     SocketChannel in, out, err;
 
-    // *** ВАЖЛИВО ***
     in.create();
     out.create();
     err.create();
 
     auto connect_retry = [&](SocketChannel& s, int port, const char* name) {
         for (int i = 0; i < 200; i++) {
-            if (s.connectTo("127.0.0.1", port)) {
+            if (s.connectTo("ignored", static_cast<unsigned short>(port))) {
                 return true;
             }
-            usleep(20000);
+            sleep_ms(20);
         }
         std::cerr << "[child] failed to connect to " << name << "\n";
         return false;

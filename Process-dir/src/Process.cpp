@@ -1,5 +1,3 @@
-// This is a demo version of PVS-Studio for educational use.
-// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 #include "../include/Process.h"
 #include <stdexcept>
 #include <sstream>
@@ -16,32 +14,30 @@ bool Process::start() {
     if (!stdinPipe.create() || !stdoutPipe.create() || !stderrPipe.create())
         throw std::runtime_error("Pipe creation failed");
 
-
     SetHandleInformation(stdinPipe.getWriteHandle(), HANDLE_FLAG_INHERIT, 0);
-    SetHandleInformation(stdoutPipe.getReadHandle(),  HANDLE_FLAG_INHERIT, 0);
-    SetHandleInformation(stderrPipe.getReadHandle(),  HANDLE_FLAG_INHERIT, 0);
 
+    SetHandleInformation(stdoutPipe.getReadHandle(), HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(stderrPipe.getReadHandle(), HANDLE_FLAG_INHERIT, 0);
     STARTUPINFOA si{};
     PROCESS_INFORMATION pi{};
     si.cb = sizeof(STARTUPINFOA);
     si.dwFlags |= STARTF_USESTDHANDLES;
 
-    si.hStdInput  = stdinPipe.getReadHandle();   
-    si.hStdOutput = stdoutPipe.getWriteHandle(); 
-    si.hStdError  = stderrPipe.getWriteHandle(); 
+    si.hStdInput  = stdinPipe.getReadHandle();
+    si.hStdOutput = stdoutPipe.getWriteHandle();
+    si.hStdError  = stderrPipe.getWriteHandle();
 
-    std::ostringstream cmdStream;
-    cmdStream << "\"" << executable << "\"";
+    std::ostringstream cmd;
+    cmd << "\"" << executable << "\"";
     for (auto& a : arguments)
-        cmdStream << " " << a;
-    std::string cmdLine = cmdStream.str();
+        cmd << " " << a;
 
     BOOL success = CreateProcessA(
         nullptr,
-        cmdLine.data(),
+        const_cast<char*>(cmd.str().c_str()),
         nullptr,
         nullptr,
-        TRUE,
+        TRUE,   // inherit handles
         0,
         nullptr,
         nullptr,
@@ -49,17 +45,64 @@ bool Process::start() {
         &pi
     );
 
-    if (!success) {
-        DWORD err = GetLastError();
-        throw std::runtime_error("CreateProcessA failed, error = " + std::to_string(err));
-    }
+    if (!success)
+        throw std::runtime_error("CreateProcessA failed");
 
-    stdinPipe.closeRead();      
-    stdoutPipe.closeWrite();   
-    stderrPipe.closeWrite();    
+    CloseHandle(stdinPipe.getReadHandle());      
+    CloseHandle(stdoutPipe.getWriteHandle());    
+    CloseHandle(stderrPipe.getWriteHandle());
 
     hProcess = pi.hProcess;
     hThread  = pi.hThread;
+
+    return true;
+}
+
+bool Process::startSockets(unsigned short basePort) {
+    useSockets = true;
+
+    if (!stdinServer.create() || !stdoutServer.create() || !stderrServer.create())
+        throw std::runtime_error("socket create failed");
+
+    if (!stdinServer.bindAndListen(basePort) ||
+        !stdoutServer.bindAndListen(basePort + 1) ||
+        !stderrServer.bindAndListen(basePort + 2))
+        throw std::runtime_error("bind/listen failed");
+
+    STARTUPINFOA si{};
+    PROCESS_INFORMATION pi{};
+    si.cb = sizeof(STARTUPINFOA);
+
+    std::ostringstream cmd;
+    cmd << "\"" << executable << "\""
+        << " " << basePort
+        << " " << (basePort + 1)
+        << " " << (basePort + 2);
+    for (auto& a : arguments)
+        cmd << " " << a;
+
+    BOOL success = CreateProcessA(
+        nullptr,
+        const_cast<char*>(cmd.str().c_str()),
+        nullptr,
+        nullptr,
+        FALSE,  
+        0,
+        nullptr,
+        nullptr,
+        &si,
+        &pi
+    );
+
+    if (!success)
+        throw std::runtime_error("CreateProcessA failed");
+
+    hProcess = pi.hProcess;
+    hThread  = pi.hThread;
+
+    stdinClient  = stdinServer.acceptClient();
+    stdoutClient = stdoutServer.acceptClient();
+    stderrClient = stderrServer.acceptClient();
 
     return true;
 }
@@ -73,11 +116,31 @@ int Process::wait() {
     return static_cast<int>(code);
 }
 
-std::string Process::readStdout() { return stdoutPipe.readAll(); }
-std::string Process::readStderr() { return stderrPipe.readAll(); }
+std::string Process::readStdout() {
+    if (useSockets)
+        return stdoutClient.readAll();
+    return stdoutPipe.readAll();
+}
 
-void Process::writeStdin(const std::string& input) { stdinPipe.write(input); }
-void Process::closeStdin() { stdinPipe.closeWrite(); }
+std::string Process::readStderr() {
+    if (useSockets)
+        return stderrClient.readAll();
+    return stderrPipe.readAll();
+}
+
+void Process::writeStdin(const std::string& input) {
+    if (useSockets)
+        stdinClient.write(input);
+    else
+        stdinPipe.write(input);
+}
+
+void Process::closeStdin() {
+    if (useSockets)
+        stdinClient.close();
+    else
+        stdinPipe.closeWrite();
+}
 
 void Process::terminate() {
     if (hProcess) TerminateProcess(hProcess, 1);
@@ -130,60 +193,6 @@ bool Process::start() {
 }
 
 bool Process::startSockets(unsigned short basePort) {
-#ifdef _WIN32
-    useSockets = true;
-
-    // Create server sockets for stdin/stdout/stderr
-    if (!stdinServer.create() || !stdoutServer.create() || !stderrServer.create())
-        throw std::runtime_error("socket create failed");
-
-    if (!stdinServer.bindAndListen(basePort) ||
-        !stdoutServer.bindAndListen(basePort + 1) ||
-        !stderrServer.bindAndListen(basePort + 2))
-        throw std::runtime_error("bind/listen failed");
-
-    // Build command line: program.exe port0 port1 port2 args...
-    std::ostringstream cmd;
-    cmd << "\"" << executable << "\" "
-        << basePort << " "
-        << basePort + 1 << " "
-        << basePort + 2;
-
-    for (auto &a : arguments)
-        cmd << " " << a;
-
-    STARTUPINFOA si{};
-    PROCESS_INFORMATION pi{};
-    si.cb = sizeof(si);
-
-    BOOL ok = CreateProcessA(
-        nullptr,
-        const_cast<char*>(cmd.str().c_str()),
-        nullptr,
-        nullptr,
-        TRUE,   // allow handle inheritance
-        0,
-        nullptr,
-        nullptr,
-        &si,
-        &pi
-    );
-
-    if (!ok)
-        throw std::runtime_error("CreateProcessA failed in startSockets");
-
-    hProcess = pi.hProcess;
-    hThread = pi.hThread;
-
-    // Now accept connections from child
-    stdinClient  = stdinServer.acceptClient();
-    stdoutClient = stdoutServer.acceptClient();
-    stderrClient = stderrServer.acceptClient();
-
-    return true;
-
-#else
-    // Linux version stays the same
     useSockets = true;
 
     if (!stdinServer.create() || !stdoutServer.create() || !stderrServer.create())
@@ -202,18 +211,22 @@ bool Process::startSockets(unsigned short basePort) {
         std::string p1 = std::to_string(basePort + 1);
         std::string p2 = std::to_string(basePort + 2);
 
-        std::vector<std::string> allArgs = {p0, p1, p2};
+        std::vector<std::string> allArgs;
+        allArgs.push_back(p0);
+        allArgs.push_back(p1);
+        allArgs.push_back(p2);
         allArgs.insert(allArgs.end(), arguments.begin(), arguments.end());
 
         std::vector<char*> argv;
         argv.push_back(const_cast<char*>(executable.c_str()));
-        for (auto &a : allArgs)
+        for (auto& a : allArgs)
             argv.push_back(const_cast<char*>(a.data()));
         argv.push_back(nullptr);
 
-        execvp(executable.c_str(), argv.data());
-        perror("execvp failed");
-        _exit(127);
+        if (execvp(executable.c_str(), argv.data()) == -1) {
+            perror("execvp failed");
+            _exit(127);
+        }
     }
 
     stdinClient  = stdinServer.acceptClient();
@@ -221,6 +234,125 @@ bool Process::startSockets(unsigned short basePort) {
     stderrClient = stderrServer.acceptClient();
 
     return true;
-#endif
 }
+
+bool Process::startSharedMemory(const std::string& baseName, size_t size) {
+    useSharedMemory = true;
+    shmBase = baseName;
+    shmSize = size;
+
+    if (!shmIn.create(baseName + "_in", size) ||
+        !shmOut.create(baseName + "_out", size) ||
+        !shmErr.create(baseName + "_err", size))
+    {
+        throw std::runtime_error("Failed to create shared memory regions");
+    }
+
+#ifdef _WIN32
+    std::ostringstream cmd;
+    cmd << "\"" << executable << "\" "
+        << baseName << "_in "
+        << baseName << "_out "
+        << baseName << "_err";
+
+    for (auto &a : arguments)
+        cmd << " " << a;
+
+    STARTUPINFOA si{};
+    PROCESS_INFORMATION pi{};
+    si.cb = sizeof(si);
+
+    BOOL ok = CreateProcessA(
+        nullptr,
+        const_cast<char*>(cmd.str().c_str()),
+        nullptr,
+        nullptr,
+        TRUE,
+        0,
+        nullptr,
+        nullptr,
+        &si,
+        &pi
+    );
+
+    if (!ok)
+        throw std::runtime_error("CreateProcessA failed (SHM)");
+
+    hProcess = pi.hProcess;
+    hThread = pi.hThread;
+
+#else
+    pid = fork();
+    if (pid < 0)
+        throw std::runtime_error("fork failed (SHM)");
+
+    if (pid == 0) {
+        std::string argIn  = baseName + "_in";
+        std::string argOut = baseName + "_out";
+        std::string argErr = baseName + "_err";
+
+        std::vector<std::string> allArgs = {argIn, argOut, argErr};
+        allArgs.insert(allArgs.end(), arguments.begin(), arguments.end());
+
+        std::vector<char*> argv;
+        argv.push_back(const_cast<char*>(executable.c_str()));
+
+        for (auto &s : allArgs)
+            argv.push_back(const_cast<char*>(s.c_str()));
+
+        argv.push_back(nullptr);
+
+        execvp(executable.c_str(), argv.data());
+        perror("execvp failed");
+        _exit(127);
+    }
+#endif
+
+    return true;
+}
+
+int Process::wait() {
+    int status = 0;
+    waitpid(pid, &status, 0);
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
+
+void Process::writeStdin(const std::string& s) {
+    if (useSharedMemory)
+        shmIn.write(s);
+    else if (useSockets)
+        stdinClient.write(s);
+    else
+        stdinPipe.write(s);
+}
+
+std::string Process::readStdout() {
+    if (useSharedMemory)
+        return shmOut.read();
+    if (useSockets)
+        return stdoutClient.readAll();
+    return stdoutPipe.readAll();
+}
+
+std::string Process::readStderr() {
+    if (useSharedMemory)
+        return shmErr.read();
+    if (useSockets)
+        return stderrClient.readAll();
+    return stderrPipe.readAll();
+}
+
+void Process::closeStdin() {
+    if (useSharedMemory)
+        shmIn.close();
+    else if (useSockets)
+        stdinClient.close();
+    else
+        stdinPipe.closeWrite();
+}
+
+void Process::terminate() {
+    if (pid > 0) kill(pid, SIGKILL);
+}
+
 #endif

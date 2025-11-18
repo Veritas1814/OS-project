@@ -2,19 +2,15 @@
 #include <string>
 #include <vector>
 #include "Pipe.h"
-
-#ifndef _WIN32
 #include "SocketChannel.h"
-#endif
 
 class Process {
 public:
     Process(const std::string& path, const std::vector<std::string>& args);
 
     bool start();
-#ifndef _WIN32
-    bool startSockets(unsigned short basePort);
-#endif
+    bool startSockets(unsigned short basePort); 
+    // bool startSharedMemory(const std::string& baseName, size_t size = 4096);
 
     int wait();
 
@@ -27,17 +23,30 @@ public:
 private:
     std::string executable;
     std::vector<std::string> arguments;
+    // bool useSockets = false;
+    // bool useSharedMemory = false;
 
+    // SharedMemoryChannel shmIn;
+    // SharedMemoryChannel shmOut;
+    // SharedMemoryChannel shmErr;
+    std::string shmBase;
+    size_t shmSize = 0;
 #ifdef _WIN32
     HANDLE hProcess = nullptr;
     HANDLE hThread = nullptr;
-    Pipe stdinPipe, stdoutPipe, stderrPipe;
 #else
     pid_t pid = -1;
+
+    SocketChannel stdinServer;
+    SocketChannel stdoutServer;
+    SocketChannel stderrServer;
+
+    SocketChannel stdinClient;
+    SocketChannel stdoutClient;
+    SocketChannel stderrClient;
+#endif
     Pipe stdinPipe, stdoutPipe, stderrPipe;
     SocketChannel stdinServer, stdoutServer, stderrServer;
     SocketChannel stdinClient, stdoutClient, stderrClient;
-#endif
-
     bool useSockets = false;
 };

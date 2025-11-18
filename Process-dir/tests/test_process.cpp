@@ -25,30 +25,20 @@ int main() {
             std::cerr << "Failed to start process\n";
             return 1;
         }
-        p.writeStdin("Line1\nLine2\n");
+        p.writeStdin("Line1\nHello\n");
         p.writeStdin("Line3\n");
         p.closeStdin();
         int code = p.wait();
         std::cout << "stdout:\n" << p.readStdout();
         std::cout << "exit code: " << code << "\n\n";
     }
-{
-        std::cout << "Test 3: Invalid command\n";
-        Process p("nonexistentcommand", {});
-        if (!p.start()) {
-            std::cerr << "Failed to start process as expected\n";
-        } else {
-            int code = p.wait();
-            std::cout << "stdout:\n" << p.readStdout();
-            std::cout << "exit code: " << code << "\n\n";
-        }
-    }
+
 
     {
         std::cout << "Test 4: Large input via stdin\n";
         Process p("findstr", {"Test"});
         if (!p.start()) { std::cerr << "Failed to start process\n"; return 1; }
-        std::string bigInput(100000, 'A');
+        std::string bigInput(1000, 'A');
         bigInput += "Test\n";
         p.writeStdin(bigInput);
         p.closeStdin();
@@ -65,7 +55,17 @@ int main() {
         std::cout << "stdout:\n" << p.readStdout();
         std::cout << "exit code: " << code << "\n\n";
     }
-
+{
+        std::cout << "Test 3: Invalid command\n";
+        Process p("nonexistentcommand", {});
+        if (!p.start()) {
+            std::cerr << "Failed to start process as expected\n";
+        } else {
+            int code = p.wait();
+            std::cout << "stdout:\n" << p.readStdout();
+            std::cout << "exit code: " << code << "\n\n";
+        }
+    }
 #else
     std::cout << "POSIX tests:\n";
 

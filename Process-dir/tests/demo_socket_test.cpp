@@ -1,8 +1,14 @@
 #include "../include/Process.h"
 #include <iostream>
+#include <string>
 
 int main() {
+#ifdef _WIN32
+    Process p("child_socket", {});
+#else
     Process p("./child_socket", {});
+#endif
+
     p.startSockets(9000);
 
     p.writeStdin("hello through sockets!\n");

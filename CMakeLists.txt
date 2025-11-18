@@ -25,7 +25,7 @@ endif()
 #=========================================================
 
 file(GLOB PROCESS_SOURCES "Process-dir/src/*.cpp")
-
+list(FILTER PROCESS_SOURCES EXCLUDE REGEX ".*/SharedMemoryChannel\\.cpp$")
 add_library(Process ${PROCESS_SOURCES})
 
 target_include_directories(Process PUBLIC
@@ -54,6 +54,10 @@ add_executable(test_pipe
 )
 target_link_libraries(test_pipe PRIVATE Process)
 
+add_executable(child_socket
+    Process-dir/tests/child_socket.cpp
+)
+target_link_libraries(child_socket PRIVATE Process)
 add_executable(test_socket
     Process-dir/tests/demo_socket_test.cpp
 )
