@@ -1,7 +1,7 @@
 #include "../include/Process.h"
 #include <stdexcept>
 #include <sstream>
-
+#include <iostream>
 #ifdef _WIN32
 #include <windows.h>
 
@@ -103,8 +103,12 @@ bool Process::startSockets(unsigned short basePort, SocketType type) {
     hThread  = pi.hThread;
 
     stdinClient  = stdinServer.acceptClient();
+    std::cerr << "[parent] accepted stdin client";
     stdoutClient = stdoutServer.acceptClient();
+    std::cerr << "[parent] accepted stdout client\n";
     stderrClient = stderrServer.acceptClient();
+    std::cerr << "[parent] accepted stderr client\n";
+
 
     return true;
 }
@@ -227,14 +231,21 @@ bool Process::startSockets(unsigned short basePort, SocketType type) {
             argv.push_back(const_cast<char*>(a.data()));
         argv.push_back(nullptr);
 
-        execvp(executable.c_str(), argv.data());
-
+        if (pid == 0) {
+            execvp(executable.c_str(), argv.data());
+            perror("execvp failed");
+            _exit(127);
+        }
     }
 
     // accept connections from child
     stdinClient  = stdinServer.acceptClient();
+    std::cerr << "[parent] accepted stdin client";
     stdoutClient = stdoutServer.acceptClient();
+    std::cerr << "[parent] accepted stdout client\n";
     stderrClient = stderrServer.acceptClient();
+    std::cerr << "[parent] accepted stderr client\n";
+
 
     return true;
 }

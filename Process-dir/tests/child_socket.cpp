@@ -1,8 +1,8 @@
-// This is a demo version of PVS-Studio for educational use.
-// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 #include "../include/SocketChannel.h"
 #include <iostream>
 #include <string>
+#include <thread>
+#include <chrono>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -13,54 +13,52 @@ static void sleep_ms(int ms) { usleep(ms * 1000); }
 #endif
 
 int main(int argc, char** argv) {
-    sleep_ms(200);
-
+    // startSockets sends: [1]domain, [2]p0, [3]p1, [4]p2.
+    // User ctor arg sends: [5]host
     if (argc < 5) {
-        std::cerr << "need domain + 3 ports\n";
+        std::cerr << "child_socket error: need domain + 3 ports\n";
         return 1;
     }
 
-    std::string domain = argv[1]; // "unix" or "ipv4"
-    bool useUnix = (domain == "unix");
-
-    std::cerr << "\n=== CHILD ARGUMENTS ===\n";
-    std::cerr << "domain = " << domain << "\n";
-    for (int i = 0; i < argc; i++) {
-        std::cerr << "argv[" << i << "] = \"" << argv[i] << "\"\n";
-    }
-    std::cerr << "========================\n\n";
-
+    std::string domain = argv[1];
     int portIn  = std::stoi(argv[2]);
     int portOut = std::stoi(argv[3]);
     int portErr = std::stoi(argv[4]);
 
+    std::string hostArg = (argc > 5) ? argv[5] : "";
+
     SocketChannel in, out, err;
+    SocketType type = (domain == "unix") ? SocketType::Unix : SocketType::IPv4;
 
-    SocketType type = useUnix ? SocketType::Unix : SocketType::IPv4;
+    if (!in.create(type))  return 2;
+    if (!out.create(type)) return 3;
+    if (!err.create(type)) return 4;
 
-    if (!in.create(type))  { std::cerr << "create(in) failed\n";  return 2; }
-    if (!out.create(type)) { std::cerr << "create(out) failed\n"; return 3; }
-    if (!err.create(type)) { std::cerr << "create(err) failed\n"; return 4; }
+    std::string targetHost = hostArg;
+
+    // Logic for "Connection Refused" test
+    if (hostArg == "REFUSE") {
+        targetHost = "127.0.0.1";
+        // Override ports to something likely closed to force refusal
+        portIn = 55555;
+        portOut = 55556;
+        portErr = 55557;
+    } else if (type == SocketType::IPv4 && targetHost.empty()) {
+        targetHost = "127.0.0.1";
+    }
 
     auto try_connect = [&](SocketChannel &s, int port, const char* name) -> bool {
-        if (useUnix) {
-            for (int i = 0; i < 200; ++i) {
-                if (s.connectTo("", static_cast<unsigned short>(port))) return true;
-                sleep_ms(20);
-            }
-        } else {
-            for (int i = 0; i < 200; ++i) {
-                if (s.connectTo("127.0.0.1", static_cast<unsigned short>(port))) return true;
-                sleep_ms(20);
-            }
+        for (int i = 0; i < 5; ++i) {
+            if (s.connectTo(targetHost, static_cast<unsigned short>(port))) return true;
+            sleep_ms(50);
         }
-        std::cerr << "[child] failed to connect to " << name << "\n";
+        std::cerr << "[child] failed connect " << name << " (" << targetHost << ":" << port << ")\n";
         return false;
     };
 
-    if (!try_connect(in,  portIn,  "stdin socket"))  return 5;
-    if (!try_connect(out, portOut, "stdout socket")) return 6;
-    if (!try_connect(err, portErr, "stderr socket")) return 7;
+    if (!try_connect(in,  portIn,  "stdin"))  return 5;
+    if (!try_connect(out, portOut, "stdout")) return 6;
+    if (!try_connect(err, portErr, "stderr")) return 7;
 
     std::string data = in.readAll();
     out.write("STDOUT FROM CHILD: " + data);
