@@ -84,15 +84,18 @@ bool SocketChannel::create(SocketType type) {
         SOCKET s = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (s == INVALID_SOCKET) return false;
         sock = from_native(s);
+        
+        // [FIXED] REMOVED setsockopt(SO_REUSEADDR) for Windows.
+        // On Windows, SO_REUSEADDR allows hijacking active listening ports,
+        // which prevents us from detecting "Port Already in Use" errors.
+        
 #else
         int s = ::socket(AF_INET, SOCK_STREAM, 0);
         if (s == -1) return false;
         sock = from_native(s);
-#endif
+        
+        // Keep this for Linux to handle TIME_WAIT sockets correctly
         int opt = 1;
-#ifdef _WIN32
-        ::setsockopt(to_native(sock), SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
-#else
         ::setsockopt(to_native(sock), SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 #endif
     }
