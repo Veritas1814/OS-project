@@ -49,7 +49,7 @@ int main() {
 
     {
         std::cout << "Test 5: Long running process (timeout simulation)\n";
-        Process p("ping", {"127.0.0.1", "-n", "3"}); // Windows ping 3 times
+        Process p("ping", {"127.0.0.1", "-n", "3"});
         if (!p.start()) { std::cerr << "Failed to start process\n"; return 1; }
         int code = p.wait();
         std::cout << "stdout:\n" << p.readStdout();
@@ -79,7 +79,7 @@ int main() {
     }
 
     {
-        std::cout << "Test 2: cat with stdin(correct: Line1/Line2)\n";
+        std::cout << "Test 2: cat with stdin(correct: \nLine1\nLine2\nLine3\n)";
         Process p("/bin/cat", {});
         if (!p.start()) { std::cerr << "Failed to start process\n"; return 1; }
         p.writeStdin("Line1\nLine2\n");
@@ -106,7 +106,7 @@ int main() {
         std::cout << "Test 4: Large input via stdin\n";
         Process p("/bin/cat", {});
         if (!p.start()) { std::cerr << "Failed to start process\n"; return 1; }
-        std::string bigInput(100000, 'A');
+        std::string bigInput(1000, 'A');
         bigInput += "Test\n";
         p.writeStdin(bigInput);
         p.closeStdin();

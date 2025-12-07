@@ -37,7 +37,7 @@ bool Process::start() {
         const_cast<char*>(cmd.str().c_str()),
         nullptr,
         nullptr,
-        TRUE,   // inherit handles
+        TRUE,
         0,
         nullptr,
         nullptr,
@@ -48,8 +48,8 @@ bool Process::start() {
     if (!success)
         throw std::runtime_error("CreateProcessA failed");
 
-    CloseHandle(stdinPipe.getReadHandle());      
-    CloseHandle(stdoutPipe.getWriteHandle());    
+    CloseHandle(stdinPipe.getReadHandle());
+    CloseHandle(stdoutPipe.getWriteHandle());
     CloseHandle(stderrPipe.getWriteHandle());
 
     hProcess = pi.hProcess;
@@ -58,10 +58,10 @@ bool Process::start() {
     return true;
 }
 
-bool Process::startSockets(unsigned short basePort) {
+bool Process::startSockets(unsigned short basePort, SocketType type) {
     useSockets = true;
 
-    if (!stdinServer.create() || !stdoutServer.create() || !stderrServer.create())
+    if (!stdinServer.create(type) || !stdoutServer.create(type) || !stderrServer.create(type))
         throw std::runtime_error("socket create failed");
 
     if (!stdinServer.bindAndListen(basePort) ||
@@ -75,6 +75,7 @@ bool Process::startSockets(unsigned short basePort) {
 
     std::ostringstream cmd;
     cmd << "\"" << executable << "\""
+        << " " << (type == SocketType::Unix ? "unix" : "ipv4")
         << " " << basePort
         << " " << (basePort + 1)
         << " " << (basePort + 2);
@@ -86,13 +87,14 @@ bool Process::startSockets(unsigned short basePort) {
         const_cast<char*>(cmd.str().c_str()),
         nullptr,
         nullptr,
-        FALSE,  
+        FALSE,
         0,
         nullptr,
         nullptr,
         &si,
         &pi
     );
+
 
     if (!success)
         throw std::runtime_error("CreateProcessA failed");
@@ -192,10 +194,10 @@ bool Process::start() {
     return true;
 }
 
-bool Process::startSockets(unsigned short basePort) {
+bool Process::startSockets(unsigned short basePort, SocketType type) {
     useSockets = true;
 
-    if (!stdinServer.create() || !stdoutServer.create() || !stderrServer.create())
+    if (!stdinServer.create(type) || !stdoutServer.create(type) || !stderrServer.create(type))
         throw std::runtime_error("socket create failed");
 
     if (!stdinServer.bindAndListen(basePort) ||
@@ -207,11 +209,13 @@ bool Process::startSockets(unsigned short basePort) {
     if (pid < 0) throw std::runtime_error("fork failed");
 
     if (pid == 0) {
+        std::string domain = (type == SocketType::Unix) ? "unix" : "ipv4";
         std::string p0 = std::to_string(basePort);
         std::string p1 = std::to_string(basePort + 1);
         std::string p2 = std::to_string(basePort + 2);
 
         std::vector<std::string> allArgs;
+        allArgs.push_back(domain);
         allArgs.push_back(p0);
         allArgs.push_back(p1);
         allArgs.push_back(p2);
@@ -223,90 +227,14 @@ bool Process::startSockets(unsigned short basePort) {
             argv.push_back(const_cast<char*>(a.data()));
         argv.push_back(nullptr);
 
-        if (execvp(executable.c_str(), argv.data()) == -1) {
-            perror("execvp failed");
-            _exit(127);
-        }
+        execvp(executable.c_str(), argv.data());
+
     }
 
+    // accept connections from child
     stdinClient  = stdinServer.acceptClient();
     stdoutClient = stdoutServer.acceptClient();
     stderrClient = stderrServer.acceptClient();
-
-    return true;
-}
-
-bool Process::startSharedMemory(const std::string& baseName, size_t size) {
-    useSharedMemory = true;
-    shmBase = baseName;
-    shmSize = size;
-
-    if (!shmIn.create(baseName + "_in", size) ||
-        !shmOut.create(baseName + "_out", size) ||
-        !shmErr.create(baseName + "_err", size))
-    {
-        throw std::runtime_error("Failed to create shared memory regions");
-    }
-
-#ifdef _WIN32
-    std::ostringstream cmd;
-    cmd << "\"" << executable << "\" "
-        << baseName << "_in "
-        << baseName << "_out "
-        << baseName << "_err";
-
-    for (auto &a : arguments)
-        cmd << " " << a;
-
-    STARTUPINFOA si{};
-    PROCESS_INFORMATION pi{};
-    si.cb = sizeof(si);
-
-    BOOL ok = CreateProcessA(
-        nullptr,
-        const_cast<char*>(cmd.str().c_str()),
-        nullptr,
-        nullptr,
-        TRUE,
-        0,
-        nullptr,
-        nullptr,
-        &si,
-        &pi
-    );
-
-    if (!ok)
-        throw std::runtime_error("CreateProcessA failed (SHM)");
-
-    hProcess = pi.hProcess;
-    hThread = pi.hThread;
-
-#else
-    pid = fork();
-    if (pid < 0)
-        throw std::runtime_error("fork failed (SHM)");
-
-    if (pid == 0) {
-        std::string argIn  = baseName + "_in";
-        std::string argOut = baseName + "_out";
-        std::string argErr = baseName + "_err";
-
-        std::vector<std::string> allArgs = {argIn, argOut, argErr};
-        allArgs.insert(allArgs.end(), arguments.begin(), arguments.end());
-
-        std::vector<char*> argv;
-        argv.push_back(const_cast<char*>(executable.c_str()));
-
-        for (auto &s : allArgs)
-            argv.push_back(const_cast<char*>(s.c_str()));
-
-        argv.push_back(nullptr);
-
-        execvp(executable.c_str(), argv.data());
-        perror("execvp failed");
-        _exit(127);
-    }
-#endif
 
     return true;
 }
@@ -319,7 +247,7 @@ int Process::wait() {
 
 void Process::writeStdin(const std::string& s) {
     if (useSharedMemory)
-        shmIn.write(s);
+        ;
     else if (useSockets)
         stdinClient.write(s);
     else
@@ -328,7 +256,7 @@ void Process::writeStdin(const std::string& s) {
 
 std::string Process::readStdout() {
     if (useSharedMemory)
-        return shmOut.read();
+        return std::string();
     if (useSockets)
         return stdoutClient.readAll();
     return stdoutPipe.readAll();
@@ -336,7 +264,7 @@ std::string Process::readStdout() {
 
 std::string Process::readStderr() {
     if (useSharedMemory)
-        return shmErr.read();
+        return std::string();
     if (useSockets)
         return stderrClient.readAll();
     return stderrPipe.readAll();
@@ -344,7 +272,7 @@ std::string Process::readStderr() {
 
 void Process::closeStdin() {
     if (useSharedMemory)
-        shmIn.close();
+        ;
     else if (useSockets)
         stdinClient.close();
     else

@@ -9,8 +9,7 @@ public:
     Process(const std::string& path, const std::vector<std::string>& args);
 
     bool start();
-    bool startSockets(unsigned short basePort); 
-    // bool startSharedMemory(const std::string& baseName, size_t size = 4096);
+    bool startSockets(unsigned short basePort, SocketType type = SocketType::Unix);
 
     int wait();
 
@@ -23,12 +22,7 @@ public:
 private:
     std::string executable;
     std::vector<std::string> arguments;
-    // bool useSockets = false;
-    // bool useSharedMemory = false;
 
-    // SharedMemoryChannel shmIn;
-    // SharedMemoryChannel shmOut;
-    // SharedMemoryChannel shmErr;
     std::string shmBase;
     size_t shmSize = 0;
 #ifdef _WIN32
@@ -36,6 +30,7 @@ private:
     HANDLE hThread = nullptr;
 #else
     pid_t pid = -1;
+#endif
 
     SocketChannel stdinServer;
     SocketChannel stdoutServer;
@@ -44,9 +39,9 @@ private:
     SocketChannel stdinClient;
     SocketChannel stdoutClient;
     SocketChannel stderrClient;
-#endif
+
     Pipe stdinPipe, stdoutPipe, stderrPipe;
-    SocketChannel stdinServer, stdoutServer, stderrServer;
-    SocketChannel stdinClient, stdoutClient, stderrClient;
     bool useSockets = false;
+
+    bool useSharedMemory = false;
 };

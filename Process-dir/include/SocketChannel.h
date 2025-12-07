@@ -1,14 +1,19 @@
-// SocketChannel.h
 #pragma once
 
 #include <string>
 #include <cstdint>
 
 #ifdef _WIN32
-using socket_handle = std::uintptr_t;   // зберігаємо SOCKET як integer handle
+using socket_handle = std::uintptr_t;
 #else
-using socket_handle = int;              // звичайний fd
+using socket_handle = int;
 #endif
+
+enum class SocketType {
+    Unix,
+    IPv4
+};
+
 class SocketChannel {
 public:
     SocketChannel();
@@ -19,7 +24,7 @@ public:
     SocketChannel(const SocketChannel&) = delete;
     SocketChannel& operator=(const SocketChannel&) = delete;
 
-    bool create();
+    bool create(SocketType type = SocketType::Unix);
     bool bindAndListen(unsigned short port, int backlog = 1);
     SocketChannel acceptClient();
     bool connectTo(const std::string& host, unsigned short port);
@@ -29,6 +34,7 @@ public:
 
 private:
     socket_handle sock;
+    SocketType sockType{SocketType::Unix};
 
 #ifdef _WIN32
     static bool wsaStarted;
