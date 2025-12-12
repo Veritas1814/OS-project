@@ -1,9 +1,10 @@
+// This is a demo version of PVS-Studio for educational use.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 #include "../include/Process.h"
 #include <iostream>
 #include <string>
 #include <vector>
 
-// Helper to hold a port open
 SocketChannel blocker;
 
 int main() {
@@ -13,8 +14,6 @@ int main() {
     const std::string childExec = "./child_socket";
 #endif
 
-    // 1. Setup "Port Already in Use" scenario
-    // We bind to port 9300 so the test using 9300 will fail
     if (!blocker.create(SocketType::IPv4) || !blocker.bindAndListen(9300)) {
         std::cerr << "SETUP ERROR: Could not bind blocking port 9300\n";
         return 1;
@@ -24,25 +23,19 @@ int main() {
         SocketType type;
         unsigned short basePort;
         std::string name;
-        std::string mode; // "echo", "invalid", "refuse"
+        std::string mode; 
         std::string extraHost;
-        bool expectStartFail; // New flag for bind failure
+        bool expectStartFail; 
     };
 
     std::vector<Test> tests = {
-        // Happy Paths
         { SocketType::Unix, 9000, "Unix domain", "echo", "", false },
         { SocketType::IPv4, 9100, "IPv4 (127.0.0.1)", "echo", "", false },
 
-        // Error Paths
         { SocketType::IPv4, 9200, "IPv4 invalid IP", "invalid", "256.256.256.256", false },
 
-        // NEW: Connection Refused
-        // We pass "REFUSE" as host to tell child to connect to a wrong (closed) port
         { SocketType::IPv4, 9150, "Connection Refused", "refuse", "REFUSE", false },
 
-        // NEW: Port Already in Use
-        // We try to bind to 9300, which 'blocker' is already holding
         { SocketType::IPv4, 9300, "Port Already in Use", "echo", "", true }
     };
 
@@ -51,8 +44,6 @@ int main() {
     for (const auto &t : tests) {
         std::cout << "==== RUN TEST: " << t.name << " on base port " << t.basePort << " ====\n";
 
-        // Logic: Process::startSockets automatically adds [domain, p0, p1, p2].
-        // We ONLY add the host argument here.
         std::string hostArg = t.extraHost.empty() ? (t.type == SocketType::Unix ? "" : "127.0.0.1") : t.extraHost;
         Process p(childExec, { hostArg });
 
@@ -80,7 +71,6 @@ int main() {
             continue;
         }
 
-        // --- Interaction Phase ---
         if (t.mode == "echo") {
             p.writeStdin(t.type == SocketType::Unix
                              ? "hello through UNIX sockets!\n"
@@ -101,7 +91,6 @@ int main() {
             success = (code == 0 && !out.empty() && !err.empty());
         }
         else if (t.mode == "invalid" || t.mode == "refuse") {
-            // Should exit with non-zero (connection failed)
             success = (code != 0);
         }
 

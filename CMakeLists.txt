@@ -25,7 +25,7 @@ endif()
 #=========================================================
 
 file(GLOB PROCESS_SOURCES "Process-dir/src/*.cpp")
-list(FILTER PROCESS_SOURCES EXCLUDE REGEX ".*/SharedMemoryChannel\\.cpp$")
+# REMOVED: list(FILTER PROCESS_SOURCES EXCLUDE REGEX ".*/SharedMemoryChannel\\.cpp$")
 add_library(Process ${PROCESS_SOURCES})
 
 target_include_directories(Process PUBLIC
@@ -62,15 +62,39 @@ add_executable(test_socket
     Process-dir/tests/demo_socket_test.cpp
 )
 target_link_libraries(test_socket PRIVATE Process)
+add_executable(test_shared_memmory
+    Process-dir/tests/final_tests_shared_memmory.cpp
+)
+target_link_libraries(test_shared_memmory PRIVATE Process)
 
-# optional root executable (if you still want main project exe)
+add_executable(test_process_shared
+    Process-dir/tests/test_process_shared.cpp
+)
+target_link_libraries(test_process_shared PRIVATE Process)
+
+add_executable(test_child_shared
+    Process-dir/tests/test_child_shared.cpp
+)
+target_link_libraries(test_child_shared PRIVATE Process)
+
+add_executable(final_tests_shared_symophore
+    Process-dir/tests/final_tests_shared_symophore.cpp
+)
+target_link_libraries(final_tests_shared_symophore PRIVATE Process)
+
+add_executable(full_shared_semaphore_test
+    Process-dir/tests/full_shared_semaphore_test.cpp
+)
+target_link_libraries(full_shared_semaphore_test PRIVATE Process)
+
+# optional root executable
 add_executable(${PROJECT_NAME}
     Process-dir/tests/test_process.cpp
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE Process)
 
 #=========================================================
-# Install rule
+# Install 
 #=========================================================
 
 install(TARGETS
@@ -78,6 +102,10 @@ install(TARGETS
     test_process
     test_pipe
     test_socket
+    test_shared_memmory
+    test_process_shared
+    full_shared_semaphore_test
+    test_child_shared
     RUNTIME DESTINATION bin
 )
 
@@ -90,6 +118,10 @@ set(ALL_TARGETS
     test_process
     test_pipe
     test_socket
+    test_shared_memmory
+    test_process_shared
+    full_shared_semaphore_test
+    test_child_shared
 )
 
 if (EXISTS "${CMAKE_SOURCE_DIR}/cmake/main-config.cmake")
