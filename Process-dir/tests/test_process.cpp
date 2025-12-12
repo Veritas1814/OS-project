@@ -35,7 +35,7 @@ int main() {
 
 
     {
-        std::cout << "Test 4: Large input via stdin\n";
+        std::cout << "Test 3: Large input via stdin\n";
         Process p("findstr", {"Test"});
         if (!p.start()) { std::cerr << "Failed to start process\n"; return 1; }
         std::string bigInput(1000, 'A');
@@ -48,7 +48,7 @@ int main() {
     }
 
     {
-        std::cout << "Test 5: Long running process (timeout simulation)\n";
+        std::cout << "Test 4: Long running process (timeout simulation)\n";
         Process p("ping", {"127.0.0.1", "-n", "3"});
         if (!p.start()) { std::cerr << "Failed to start process\n"; return 1; }
         int code = p.wait();
@@ -56,7 +56,7 @@ int main() {
         std::cout << "exit code: " << code << "\n\n";
     }
 {
-        std::cout << "Test 3: Invalid command\n";
+        std::cout << "Test 5: Invalid command\n";
         Process p("nonexistentcommand", {});
         if (!p.start()) {
             std::cerr << "Failed to start process as expected\n";

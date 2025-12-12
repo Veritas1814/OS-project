@@ -1,7 +1,10 @@
+// This is a demo version of PVS-Studio for educational use.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 #include "../include/Process.h"
 #include <stdexcept>
 #include <sstream>
 #include <iostream>
+
 #ifdef _WIN32
 #include <windows.h>
 
@@ -10,14 +13,21 @@ Process::Process(const std::string& path, const std::vector<std::string>& args)
 
 bool Process::start() {
     useSockets = false;
+    useSharedMemory = false;
 
     if (!stdinPipe.create() || !stdoutPipe.create() || !stderrPipe.create())
         throw std::runtime_error("Pipe creation failed");
 
-    SetHandleInformation(stdinPipe.getWriteHandle(), HANDLE_FLAG_INHERIT, 0);
+    // Ensure pipe handles are inherited
+    SetHandleInformation(stdinPipe.getWriteHandle(), HANDLE_FLAG_INHERIT, 0); 
+    SetHandleInformation(stdinPipe.getReadHandle(), HANDLE_FLAG_INHERIT, 1);  
 
-    SetHandleInformation(stdoutPipe.getReadHandle(), HANDLE_FLAG_INHERIT, 0);
-    SetHandleInformation(stderrPipe.getReadHandle(), HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(stdoutPipe.getReadHandle(), HANDLE_FLAG_INHERIT, 0); 
+    SetHandleInformation(stdoutPipe.getWriteHandle(), HANDLE_FLAG_INHERIT, 1); 
+
+    SetHandleInformation(stderrPipe.getReadHandle(), HANDLE_FLAG_INHERIT, 0); 
+    SetHandleInformation(stderrPipe.getWriteHandle(), HANDLE_FLAG_INHERIT, 1); 
+
     STARTUPINFOA si{};
     PROCESS_INFORMATION pi{};
     si.cb = sizeof(STARTUPINFOA);
@@ -37,7 +47,7 @@ bool Process::start() {
         const_cast<char*>(cmd.str().c_str()),
         nullptr,
         nullptr,
-        TRUE,
+        TRUE, 
         0,
         nullptr,
         nullptr,
@@ -60,6 +70,7 @@ bool Process::start() {
 
 bool Process::startSockets(unsigned short basePort, SocketType type) {
     useSockets = true;
+    useSharedMemory = false;
 
     if (!stdinServer.create(type) || !stdoutServer.create(type) || !stderrServer.create(type))
         throw std::runtime_error("socket create failed");
@@ -103,12 +114,66 @@ bool Process::startSockets(unsigned short basePort, SocketType type) {
     hThread  = pi.hThread;
 
     stdinClient  = stdinServer.acceptClient();
-    std::cerr << "[parent] accepted stdin client";
+    std::cerr << "[parent] accepted stdin client\n";
     stdoutClient = stdoutServer.acceptClient();
     std::cerr << "[parent] accepted stdout client\n";
     stderrClient = stderrServer.acceptClient();
     std::cerr << "[parent] accepted stderr client\n";
 
+    return true;
+}
+
+bool Process::startSharedMemory(size_t size) {
+    useSharedMemory = true;
+    useSockets = false;
+    shmSize = size;
+
+    DWORD parentPid = GetCurrentProcessId();
+
+    std::string shmInName  = "/proc_shm_in_"  + std::to_string(parentPid);
+    std::string shmOutName = "/proc_shm_out_" + std::to_string(parentPid);
+    std::string semInName  = "/proc_sem_in_"  + std::to_string(parentPid);
+    std::string semOutName = "/proc_sem_out_" + std::to_string(parentPid);
+
+    if (!shmIn.create(shmInName, size))
+        throw std::runtime_error("Failed to create shmIn");
+
+    if (!shmOut.create(shmOutName, size))
+        throw std::runtime_error("Failed to create shmOut");
+
+    semIn.init(semInName, true, 0);
+    semOut.init(semOutName, true, 0);
+
+    std::ostringstream cmd;
+    cmd << "\"" << executable << "\"";
+
+    cmd << " " << shmInName << " " << shmOutName << " " << semInName << " " << semOutName;
+
+    for (auto& a : arguments)
+        cmd << " " << a;
+
+    STARTUPINFOA si{};
+    PROCESS_INFORMATION pi{};
+    si.cb = sizeof(STARTUPINFOA);
+
+    BOOL success = CreateProcessA(
+        nullptr,
+        const_cast<char*>(cmd.str().c_str()),
+        nullptr,
+        nullptr,
+        FALSE,
+        0,
+        nullptr,
+        nullptr,
+        &si,
+        &pi
+    );
+
+    if (!success)
+        throw std::runtime_error("CreateProcessA (SharedMemory) failed");
+
+    hProcess = pi.hProcess;
+    hThread  = pi.hThread;
 
     return true;
 }
@@ -119,22 +184,35 @@ int Process::wait() {
     GetExitCodeProcess(hProcess, &code);
     CloseHandle(hProcess);
     CloseHandle(hThread);
+    hProcess = nullptr;
+    hThread = nullptr;
     return static_cast<int>(code);
 }
 
 std::string Process::readStdout() {
+    if (useSharedMemory) {
+        semOut.wait();
+        return shmOut.read();
+    }
     if (useSockets)
         return stdoutClient.readAll();
     return stdoutPipe.readAll();
 }
 
 std::string Process::readStderr() {
+    if (useSharedMemory)
+        return ""; 
     if (useSockets)
         return stderrClient.readAll();
     return stderrPipe.readAll();
 }
 
 void Process::writeStdin(const std::string& input) {
+    if (useSharedMemory) {
+        shmIn.write(input);
+        semIn.post();
+        return;
+    }
     if (useSockets)
         stdinClient.write(input);
     else
@@ -142,6 +220,8 @@ void Process::writeStdin(const std::string& input) {
 }
 
 void Process::closeStdin() {
+    if (useSharedMemory) return; 
+
     if (useSockets)
         stdinClient.close();
     else
@@ -152,6 +232,7 @@ void Process::terminate() {
     if (hProcess) TerminateProcess(hProcess, 1);
 }
 
+// POSIX 
 #else
 
 #include <unistd.h>
@@ -240,9 +321,8 @@ bool Process::startSockets(unsigned short basePort, SocketType type) {
         }
     }
 
-    // accept connections from child
     stdinClient  = stdinServer.acceptClient();
-    std::cerr << "[parent] accepted stdin client";
+    std::cerr << "[parent] accepted stdin client\n";
     stdoutClient = stdoutServer.acceptClient();
     std::cerr << "[parent] accepted stdout client\n";
     stderrClient = stderrServer.acceptClient();
@@ -263,7 +343,6 @@ bool Process::startSharedMemory(size_t size) {
     std::string semInName  = "/proc_sem_in_"  + std::to_string(parentPid);
     std::string semOutName = "/proc_sem_out_" + std::to_string(parentPid);
 
-    // Create shared memory
     if (!shmIn.create(shmInName, size))
         throw std::runtime_error("Failed to create shmIn");
 
@@ -278,20 +357,17 @@ bool Process::startSharedMemory(size_t size) {
     if (pid < 0)
         throw std::runtime_error("fork failed");
 
-    // CHILD
     if (pid == 0) {
 
         std::vector<char*> argv;
 
         argv.push_back(const_cast<char*>(executable.c_str()));
 
-        // pass names to child
         argv.push_back(const_cast<char*>(shmInName.c_str()));
         argv.push_back(const_cast<char*>(shmOutName.c_str()));
         argv.push_back(const_cast<char*>(semInName.c_str()));
         argv.push_back(const_cast<char*>(semOutName.c_str()));
 
-        // pass user arguments
         for (auto &a : arguments)
             argv.push_back(const_cast<char*>(a.c_str()));
 

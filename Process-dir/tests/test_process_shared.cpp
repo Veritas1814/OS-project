@@ -1,12 +1,18 @@
 #include <iostream>
 #include <cassert>
-#include <unistd.h>
+#include <string>
 #include "../include/Process.h"
 
 void test_basic_exchange() {
     std::cout << "\n===== TEST 1: Parent <-> Child basic exchange =====\n";
 
-    Process p("./test_child_shared",
+#ifdef _WIN32
+    std::string exe = "test_child_shared.exe";
+#else
+    std::string exe = "./test_child_shared";
+#endif
+
+    Process p(exe,
               {"/proc_shm_in_test",
                "/proc_shm_out_test",
                "/proc_sem_in_test",
@@ -36,7 +42,13 @@ void test_basic_exchange() {
 void test_multiple_rounds() {
     std::cout << "\n===== TEST 2: Multiple message rounds =====\n";
 
-    Process p("./test_child_shared",
+#ifdef _WIN32
+    std::string exe = "test_child_shared.exe";
+#else
+    std::string exe = "./test_child_shared";
+#endif
+
+    Process p(exe,
               {"/proc_shm_in_multi",
                "/proc_shm_out_multi",
                "/proc_sem_in_multi",
@@ -63,7 +75,13 @@ void test_multiple_rounds() {
 void test_large_message() {
     std::cout << "\n===== TEST 3: Large message =====\n";
 
-    Process p("./test_child_shared",
+#ifdef _WIN32
+    std::string exe = "test_child_shared.exe";
+#else
+    std::string exe = "./test_child_shared";
+#endif
+
+    Process p(exe,
               {"/proc_shm_in_large",
                "/proc_shm_out_large",
                "/proc_sem_in_large",
@@ -90,4 +108,5 @@ int main() {
     test_large_message();
 
     std::cout << "\nAll shared memory IPC tests passed.\n";
+    return 0;
 }

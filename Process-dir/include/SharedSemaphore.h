@@ -1,7 +1,14 @@
+// This is a demo version of PVS-Studio for educational use.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 #pragma once
+#include <string>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include "SharedMemoryChannel.h"
 #include <pthread.h>
-#include <string>
+#endif
 
 class SharedSemaphore {
 public:
@@ -14,6 +21,10 @@ public:
     void post();
 
 private:
+#ifdef _WIN32
+    HANDLE hSem = NULL;
+    bool creator = false;
+#else
     struct SemaphoreData {
         pthread_mutex_t mtx;
         pthread_cond_t  cond;
@@ -23,4 +34,5 @@ private:
     SharedMemoryChannel shm;
     SemaphoreData* data = nullptr;
     bool creator = false;
+#endif
 };

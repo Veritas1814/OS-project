@@ -1,14 +1,83 @@
+// This is a demo version of PVS-Studio for educational use.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 #include "../include/SharedSemaphore.h"
 #include <stdexcept>
+#include <string>
+#include <iostream>
+
+#ifdef _WIN32
+SharedSemaphore::SharedSemaphore() : hSem(NULL), creator(false) {}
+
+SharedSemaphore::SharedSemaphore(const std::string& name, bool create, int initialValue) 
+    : hSem(NULL), creator(false) 
+{
+    init(name, create, initialValue);
+}
+
+SharedSemaphore::~SharedSemaphore() {
+    if (hSem) {
+        CloseHandle(hSem);
+        hSem = NULL;
+    }
+}
+
+void SharedSemaphore::init(const std::string& name, bool create, int initialValue) {
+    if (hSem) {
+        CloseHandle(hSem);
+        hSem = NULL;
+    }
+    std::string safeName = name;
+    for (auto &c : safeName) {
+        if (c == '/' || c == '\\') c = '_';
+    }
+
+    if (create) {
+        hSem = CreateSemaphoreA(NULL, initialValue, 2147483647, safeName.c_str());
+        if (!hSem) {
+            throw std::runtime_error("CreateSemaphoreA failed. Error: " + std::to_string(GetLastError()));
+        }
+        creator = true;
+    } else {
+        hSem = OpenSemaphoreA(SEMAPHORE_ALL_ACCESS, FALSE, safeName.c_str());
+        if (!hSem) {
+            hSem = CreateSemaphoreA(NULL, 0, 2147483647, safeName.c_str());
+            if (!hSem)
+                throw std::runtime_error("OpenSemaphoreA failed. Error: " + std::to_string(GetLastError()));
+        }
+        creator = false;
+    }
+}
+
+void SharedSemaphore::wait() {
+    if (!hSem) throw std::runtime_error("Semaphore not initialized");
+    WaitForSingleObject(hSem, INFINITE);
+}
+
+void SharedSemaphore::post() {
+    if (!hSem) throw std::runtime_error("Semaphore not initialized");
+    ReleaseSemaphore(hSem, 1, NULL);
+}
+
+#else
 #include <cstring>
 #include <unistd.h>
+#include <new> 
 
 SharedSemaphore::SharedSemaphore()
     : data(nullptr), creator(false) {}
 
 SharedSemaphore::SharedSemaphore(const std::string& name, bool create, int initialValue)
 {
-    // Виділяємо одну сторінку памʼяті під семафор
+    init(name, create, initialValue);
+}
+
+void SharedSemaphore::init(const std::string& name, bool create, int initialValue)
+{
+    if (data) {
+        this->~SharedSemaphore();
+        new (this) SharedSemaphore(); 
+    }
+
     size_t sz = 4096;
 
     if (create) {
@@ -21,15 +90,12 @@ SharedSemaphore::SharedSemaphore(const std::string& name, bool create, int initi
         creator = false;
     }
 
-    // mmap вже здійснений всередині SharedMemoryChannel
     data = reinterpret_cast<SemaphoreData*>(shm.getBuffer());
 
     if (!data)
         throw std::runtime_error("SemaphoreData mmap returned null");
 
-    // ---- ІНІЦІАЛІЗАЦІЯ ТІЛЬКИ В PARENT (create == true) ----
     if (creator) {
-        // Обнуляємо весь блок памʼяті, щоб уникнути UB
         std::memset(data, 0, sizeof(SemaphoreData));
 
         pthread_mutexattr_t mAttr;
@@ -54,18 +120,14 @@ SharedSemaphore::SharedSemaphore(const std::string& name, bool create, int initi
     }
 }
 
-void SharedSemaphore::init(const std::string& name, bool create, int initialValue)
-{
-    this->~SharedSemaphore();
-    new (this) SharedSemaphore(name, create, initialValue);
-}
-
 SharedSemaphore::~SharedSemaphore() {
     shm.close();
+    data = nullptr;
 }
 
 
 void SharedSemaphore::wait() {
+    if (!data) return;
     pthread_mutex_lock(&data->mtx);
 
     while (data->value == 0)
@@ -77,6 +139,7 @@ void SharedSemaphore::wait() {
 }
 
 void SharedSemaphore::post() {
+    if (!data) return;
     pthread_mutex_lock(&data->mtx);
 
     data->value++;
@@ -84,3 +147,4 @@ void SharedSemaphore::post() {
 
     pthread_mutex_unlock(&data->mtx);
 }
+#endif

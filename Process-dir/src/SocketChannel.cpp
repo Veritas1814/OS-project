@@ -1,3 +1,5 @@
+// This is a demo version of PVS-Studio for educational use.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
 #include "../include/SocketChannel.h"
 #include <stdexcept>
 #include <iostream>
@@ -85,16 +87,10 @@ bool SocketChannel::create(SocketType type) {
         if (s == INVALID_SOCKET) return false;
         sock = from_native(s);
         
-        // [FIXED] REMOVED setsockopt(SO_REUSEADDR) for Windows.
-        // On Windows, SO_REUSEADDR allows hijacking active listening ports,
-        // which prevents us from detecting "Port Already in Use" errors.
-        
 #else
         int s = ::socket(AF_INET, SOCK_STREAM, 0);
         if (s == -1) return false;
         sock = from_native(s);
-        
-        // Keep this for Linux to handle TIME_WAIT sockets correctly
         int opt = 1;
         ::setsockopt(to_native(sock), SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 #endif
@@ -142,7 +138,6 @@ SocketChannel SocketChannel::acceptClient() {
     c.sockType = sockType;
     if (sock == INVALID_SOCKET_HANDLE) return c;
 
-    // Timeout logic
     fd_set readfds;
     FD_ZERO(&readfds);
     FD_SET(to_native(sock), &readfds);
