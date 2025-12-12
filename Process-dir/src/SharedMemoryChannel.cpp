@@ -4,9 +4,11 @@
 #include <fcntl.h>
 #include <cstring>
 #include <iostream>
+#include <unistd.h>
 
 SharedMemoryChannel::SharedMemoryChannel() = default;
 SharedMemoryChannel::~SharedMemoryChannel() { close(); }
+
 
 bool SharedMemoryChannel::create(const std::string& n, size_t sz) {
     name = n;
@@ -31,7 +33,7 @@ bool SharedMemoryChannel::open(const std::string& n, size_t sz) {
         return false;
     }
 
-    struct stat st{};
+    struct stat st;
     fstat(fd, &st);
     if (st.st_size < (off_t)size) {
         if (ftruncate(fd, size) == -1) {
@@ -75,3 +77,5 @@ void SharedMemoryChannel::close() {
         fd = -1;
     }
 }
+
+

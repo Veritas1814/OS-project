@@ -163,6 +163,7 @@ Process::Process(const std::string& path, const std::vector<std::string>& args)
 
 bool Process::start() {
     useSockets = false;
+    useSharedMemory = false;
 
     if (!stdinPipe.create() || !stdoutPipe.create() || !stderrPipe.create())
         throw std::runtime_error("Pipe creation failed");
@@ -200,6 +201,7 @@ bool Process::start() {
 
 bool Process::startSockets(unsigned short basePort, SocketType type) {
     useSockets = true;
+    useSharedMemory = false;
 
     if (!stdinServer.create(type) || !stdoutServer.create(type) || !stderrServer.create(type))
         throw std::runtime_error("socket create failed");
@@ -250,6 +252,59 @@ bool Process::startSockets(unsigned short basePort, SocketType type) {
     return true;
 }
 
+bool Process::startSharedMemory(size_t size) {
+    useSharedMemory = true;
+    shmSize = size;
+
+    int parentPid = getpid();
+
+    std::string shmInName  = "/proc_shm_in_"  + std::to_string(parentPid);
+    std::string shmOutName = "/proc_shm_out_" + std::to_string(parentPid);
+    std::string semInName  = "/proc_sem_in_"  + std::to_string(parentPid);
+    std::string semOutName = "/proc_sem_out_" + std::to_string(parentPid);
+
+    // Create shared memory
+    if (!shmIn.create(shmInName, size))
+        throw std::runtime_error("Failed to create shmIn");
+
+    if (!shmOut.create(shmOutName, size))
+        throw std::runtime_error("Failed to create shmOut");
+
+    // Create semaphores (parent only)
+    semIn.init(semInName, true, 0);
+    semOut.init(semOutName, true, 0);
+
+    pid = fork();
+    if (pid < 0)
+        throw std::runtime_error("fork failed");
+
+    // CHILD
+    if (pid == 0) {
+
+        std::vector<char*> argv;
+
+        argv.push_back(const_cast<char*>(executable.c_str()));
+
+        // pass names to child
+        argv.push_back(const_cast<char*>(shmInName.c_str()));
+        argv.push_back(const_cast<char*>(shmOutName.c_str()));
+        argv.push_back(const_cast<char*>(semInName.c_str()));
+        argv.push_back(const_cast<char*>(semOutName.c_str()));
+
+        // pass user arguments
+        for (auto &a : arguments)
+            argv.push_back(const_cast<char*>(a.c_str()));
+
+        argv.push_back(nullptr);
+
+        execvp(executable.c_str(), argv.data());
+        perror("execvp failed");
+        _exit(127);
+    }
+
+    return true;
+}
+
 int Process::wait() {
     int status = 0;
     waitpid(pid, &status, 0);
@@ -257,34 +312,45 @@ int Process::wait() {
 }
 
 void Process::writeStdin(const std::string& s) {
-    if (useSharedMemory)
-        ;
-    else if (useSockets)
+    if (useSharedMemory) {
+        shmIn.write(s);
+        semIn.post();
+        return;
+    }
+
+    if (useSockets)
         stdinClient.write(s);
     else
         stdinPipe.write(s);
 }
 
 std::string Process::readStdout() {
-    if (useSharedMemory)
-        return std::string();
+    if (useSharedMemory) {
+        semOut.wait();
+        return shmOut.read();
+    }
+
     if (useSockets)
         return stdoutClient.readAll();
+
     return stdoutPipe.readAll();
 }
 
 std::string Process::readStderr() {
     if (useSharedMemory)
-        return std::string();
+        return "";
+
     if (useSockets)
         return stderrClient.readAll();
+
     return stderrPipe.readAll();
 }
 
 void Process::closeStdin() {
     if (useSharedMemory)
-        ;
-    else if (useSockets)
+        return;
+
+    if (useSockets)
         stdinClient.close();
     else
         stdinPipe.closeWrite();

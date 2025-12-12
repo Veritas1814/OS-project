@@ -14,6 +14,9 @@ public:
 
     void close();
 
+    void* getBuffer() const { return buffer; }
+    size_t getSize() const { return size; }
+
 private:
 #ifdef _WIN32
     void* hMap = nullptr;
@@ -22,6 +25,7 @@ private:
     int fd = -1;
     void* buffer = nullptr;
 #endif
+
     size_t size = 0;
     std::string name;
 };
