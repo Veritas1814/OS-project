@@ -45,3 +45,4 @@ sudo cmake --install build
 5. Socket Channel(SocketChannel)\
 `socketPOSIX, socketWIN`In this example, you can see a Client-Server architecture where one process listens for connections and another connects to it.
     - It demonstrates: Bidirectional communication using TCP (Windows/Linux) or Unix Domain Sockets (Linux). This allows processes to talk to each other even if they are on different computers (TCP).
+Also you can find example of cmake in dir `documentation`
