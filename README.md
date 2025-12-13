@@ -8,6 +8,8 @@ Writing code that works on both Windows and Linux is usually hard because they u
   - Pipes: Simple one-way data flow (Standard Input/Output).
   - Sockets: Network-style communication (TCP/IPv4 or Unix Domain Sockets).
   - Shared Memory: Fast data transfer by sharing RAM between programs.
+- Synchronization Primitives: 
+  - Cross-platform named semaphores for process synchronization.
 # How to Use It
 All the main classes are in the ipc namespace. You just need to include one file: ``IPC.h``
 ### 1. The `Process` Class

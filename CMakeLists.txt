@@ -25,8 +25,13 @@ endif()
 #=========================================================
 
 file(GLOB PROCESS_SOURCES "Process-dir/src/*.cpp")
-# REMOVED: list(FILTER PROCESS_SOURCES EXCLUDE REGEX ".*/SharedMemoryChannel\\.cpp$")
 add_library(Process ${PROCESS_SOURCES})
+# 1. Static Version
+add_library(Process_static STATIC ${PROCESS_SOURCES})
+set_target_properties(Process_static PROPERTIES OUTPUT_NAME "Process")
+# 2. Shared Version
+add_library(Process_shared SHARED ${PROCESS_SOURCES})
+set_target_properties(Process_shared PROPERTIES OUTPUT_NAME "Process")
 
 target_include_directories(Process PUBLIC
     Process-dir/include
@@ -108,7 +113,14 @@ install(TARGETS
     test_child_shared
     RUNTIME DESTINATION bin
 )
-
+install(TARGETS Process
+        LIBRARY DESTINATION lib   # For .so (Linux)
+        ARCHIVE DESTINATION lib   # For .a (Static)
+        RUNTIME DESTINATION bin   # For .dll (Windows)
+)
+install(DIRECTORY Process-dir/include/
+        DESTINATION include
+)
 #=========================================================
 # Main config include
 #=========================================================
