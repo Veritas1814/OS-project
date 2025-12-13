@@ -11,32 +11,37 @@ Writing code that works on both Windows and Linux is usually hard because they u
 - Synchronization Primitives: 
   - Cross-platform named semaphores for process synchronization.
 # How to Use It
-All the main classes are in the ipc namespace. You just need to include one file: ``IPC.h``
-### 1. The `Process` Class
-This is the main class you will use. It lets you run a program and talk to it.
-#### Example 1: Simple Command (Using Pipes) This is the easiest way to run a command and get its output.
+1. You need to clone our github repository 
+2. If you are on Mac/Linux:
+```bash
+cmake -S . -B build
 ```
-#include "include/IPC.h"
-#include <iostream>
-
-int main() {
-    // 1. Create the process object (pick the command for your OS)
-    #ifdef _WIN32
-        ipc::Process p("cmd", {"/C", "echo Hello from Windows"});
-    #else
-        ipc::Process p("/bin/echo", {"Hello from Unix"});
-    #endif
-
-    // 2. Start the process
-    p.start();
-
-    // 3. Wait for it to finish and get the exit code
-    int exitCode = p.wait();
-
-    // 4. Print what the child process wrote
-    std::cout << "Output: " << p.readStdout() << "\n";
-    std::cout << "Exit code: " << exitCode << "\n";
-
-    return 0;
-}
+2. If you use Windows
+```bash
+cmake -S . -B build -DCMAKE_PREFIX_PATH="absolute/path/to/Os-project/install"
+example
+(cmake -S . -B build -DCMAKE_PREFIX_PATH="C:/Users/matvi/Code/OS-project/install")
 ```
+3. For all OS run this
+```bash
+cmake --build build --config Release
+```
+4. Mac/Linux: (You don't need to do this on Windows)
+```bash
+sudo cmake --install build
+```
+1. Process\
+`ProcessPOSIX, ProcessWIN` In this example, you can see how to spawn a new child process (like ls on Linux or dir on Windows) from your C++ application.
+    - It demonstrates: How to launch an executable, pass command-line arguments, wait for it to finish, and capture its standard output (stdout) into a string.
+2. Pipe\
+`pipePOSIX, pipeWIN`In this example, you can see how to create a raw anonymous pipe to stream data between two points.
+    - It demonstrates: Low-level one-way communication where one thread writes data ("Hello world") and another thread reads it continuously until the pipe is closed.
+3. Shared Memory(SharedMemoryChannel)\
+`SharedMemoryPOSIX, SharedMemoryWIN`In this example, you can see two separate processes (Parent and Child) accessing the exact same block of RAM to exchange data without copying it.
+    - It demonstrates: The fastest possible IPC method. The parent writes a string directly into memory, and the child attaches to that same memory segment to read it instantly.
+4. Shared Semaphore(SharedSemaphore\
+`SharedSemaphorePOSIX, SharedSemaphoreWIN`In this example, you can see how to synchronize two processes to prevent them from crashing or corrupting data.
+    - It demonstrates: How to make a child process wait (block) until the parent signals it is safe to proceed. Without this semaphore, the child might try to read data before the parent has finished writing it.
+5. Socket Channel(SocketChannel)\
+`socketPOSIX, socketWIN`In this example, you can see a Client-Server architecture where one process listens for connections and another connects to it.
+    - It demonstrates: Bidirectional communication using TCP (Windows/Linux) or Unix Domain Sockets (Linux). This allows processes to talk to each other even if they are on different computers (TCP).
